@@ -74,6 +74,11 @@
   .summary li{margin:10px 0;font-size:.92rem}
   .summary li span{display:block;color:var(--muted)}
   .qtext{margin-top:14px}
+  .hint{font-size:.88rem;color:var(--muted);margin-top:-2px}
+  .add-note{display:inline-block;margin-top:14px;background:none;border:0;padding:4px 0;font-family:inherit;font-size:.9rem;font-weight:600;color:var(--red);cursor:pointer}
+  .add-note:hover{color:var(--red-dark);text-decoration:underline}
+  .summary li em{display:block;font-style:normal;color:var(--muted);font-size:.88rem;margin-top:2px}
+  .opt.dim{opacity:.45;cursor:not-allowed}
   footer{text-align:center;font-size:.8rem;color:var(--muted);padding:0 16px 32px}
 </style>
 </head>
@@ -112,7 +117,7 @@ const QUESTIONS = [
     {t:"Poco o ninguno; prefiero no estar en la operación", s:{o1:2}},
     {t:"Algunas horas al mes, en proyectos puntuales", s:{o1:1,o2:1}},
     {t:"Me gustaría involucrarme activamente", s:{o2:2}}]},
-  {q:"¿Qué te motiva más de esta integración?", opts:[
+  {q:"¿Qué te motiva más de esta integración?", multi:true, opts:[
     {t:"Ver crecer la plataforma y mi inversión", s:{o1:2}},
     {t:"Organizar torneos, showcases y eventos", s:{o2:2}},
     {t:"Conectar atletas con universidades y clubes", s:{o2:1}}]},
@@ -128,12 +133,12 @@ const QUESTIONS = [
     {t:"Inversionista y asesor estratégico", s:{o1:2}},
     {t:"Director a cargo de competencias y eventos", s:{o2:2}},
     {t:"Todavía no lo tengo claro", s:{}}]},
-  {q:"¿Qué es lo más valioso que podrías aportar a UProspect?", opts:[
+  {q:"¿Qué es lo más valioso que podrías aportar a UProspect?", multi:true, opts:[
     {t:"Capital y visión de negocio", s:{o1:2}},
     {t:"Experiencia organizando torneos y eventos", s:{o2:2}},
     {t:"Mi red de clubes, escuelas y universidades", s:{o2:1}},
     {t:"Conocimiento en desarrollo de plataformas", s:{o1:1}}]},
-  {q:"¿Qué esperas recibir a cambio de integrar Prestige Recruit a UProspect?", opts:[
+  {q:"¿Qué esperas recibir a cambio de integrar Prestige Recruit a UProspect?", multi:true, opts:[
     {t:"Nada inmediato; me interesa el proyecto a largo plazo", s:{}},
     {t:"Una compensación económica por la plataforma", s:{}},
     {t:"Ingresos por el trabajo que realice", s:{o2:1}},
@@ -142,7 +147,7 @@ const QUESTIONS = [
     {t:"Prefiero que UProspect se encargue de la comunicación", s:{o1:1}},
     {t:"Quiero comunicarme yo directamente con ellos", s:{o2:1}},
     {t:"Lo trabajamos juntos", s:{}}]},
-  {q:"¿Qué planes tienes para Prestige Sports en los próximos años?", textOn:3, ph:"Cuéntanos tus planes…", opts:[
+  {q:"¿Qué planes tienes para Prestige Sports en los próximos años?", multi:true, textOn:3, ph:"Cuéntanos tus planes…", opts:[
     {t:"Seguir enfocado en la gestión de clubes y torneos", s:{}},
     {t:"Desarrollar nuevas plataformas o productos tecnológicos", s:{}},
     {t:"Reducir mi carga y enfocarme en menos proyectos", s:{}},
@@ -157,21 +162,30 @@ const QUESTIONS = [
     {t:"En los próximos 2 a 3 meses", s:{}},
     {t:"Antes de la próxima temporada", s:{}},
     {t:"Prefiero conversarlo primero", s:{}}]},
-  {q:"¿Hay algo de esta integración que te preocupe o te genere dudas?", textOn:1, ph:"Escribe aquí lo que quieras comentar…", opts:[
+  {q:"¿Hay algo de esta integración que te preocupe o te genere dudas?", noNote:true, textOn:1, ph:"Escribe aquí lo que quieras comentar…", opts:[
     {t:"No, por ahora no", s:{}},
     {t:"Sí, quiero comentarlo", s:{}}]}
 ];
 
-const state = {step:-1, answers:Array(QUESTIONS.length).fill(null), texts:Array(QUESTIONS.length).fill(""), view:null, choice:null};
+const MAX_MULTI = 2;
+const state = {step:-1, answers:QUESTIONS.map(()=>[]), texts:Array(QUESTIONS.length).fill(""), notes:QUESTIONS.map(()=>""), noteOpen:QUESTIONS.map(()=>false), view:null, choice:null};
 function esc(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
-function needsText(i){ const Q=QUESTIONS[i]; return Q.textOn!==undefined && state.answers[i]===Q.textOn; }
-function canNext(i){ if(state.answers[i]===null) return false; return !needsText(i) || state.texts[i].trim().length>0; }
-function answerText(i){ const a=QUESTIONS[i].opts[state.answers[i]].t; return needsText(i) ? `${a}: ${state.texts[i].trim()}` : a; }
+function needsText(i){ const Q=QUESTIONS[i]; return Q.textOn!==undefined && state.answers[i].includes(Q.textOn); }
+function canNext(i){ if(!state.answers[i].length) return false; return !needsText(i) || state.texts[i].trim().length>0; }
+function answerText(i){
+  const Q=QUESTIONS[i];
+  return state.answers[i].map(k=>{ const t=Q.opts[k].t; return (k===Q.textOn && state.texts[i].trim()) ? `${t}: ${state.texts[i].trim()}` : t; }).join(" · ");
+}
 const app = document.getElementById("app");
 
 function scores(){
   const s={o1:0,o2:0};
-  state.answers.forEach((a,i)=>{ if(a===null) return; const sc=QUESTIONS[i].opts[a].s; s.o1+=sc.o1||0; s.o2+=sc.o2||0; });
+  /* En selección múltiple se promedian los puntos de las opciones escogidas */
+  state.answers.forEach((sel,i)=>{
+    if(!sel.length) return;
+    sel.forEach(k=>{ const sc=QUESTIONS[i].opts[k].s; s.o1+=(sc.o1||0)/sel.length; s.o2+=(sc.o2||0)/sel.length; });
+  });
+  s.o1=Math.round(s.o1*10)/10; s.o2=Math.round(s.o2*10)/10;
   return s;
 }
 function recommended(){ const s=scores(); return s.o1>s.o2 ? "o1" : "o2"; }
@@ -207,10 +221,13 @@ function renderQuestion(){
     <div class="step-meta"><span>Pregunta ${i+1} de ${n}</span><span>${Math.round((i)/n*100)}%</span></div>
     <div class="progress"><span style="width:${(i)/n*100}%"></span></div>
     <h2>${Q.q}</h2>
+    ${Q.multi?`<p class="hint">Puedes escoger hasta ${MAX_MULTI} opciones.</p>`:''}
     <div class="opts">
-      ${Q.opts.map((o,k)=>`<button class="opt ${state.answers[i]===k?'sel':''}" data-k="${k}">${o.t}</button>`).join("")}
+      ${Q.opts.map((o,k)=>`<button class="opt ${state.answers[i].includes(k)?'sel':''}" data-k="${k}" aria-pressed="${state.answers[i].includes(k)}">${o.t}</button>`).join("")}
     </div>
     ${Q.textOn!==undefined?`<textarea id="qtext" class="qtext" aria-label="Tu respuesta" placeholder="${Q.ph||'Escribe aquí…'}" style="display:${needsText(i)?'block':'none'}">${esc(state.texts[i])}</textarea>`:''}
+    ${Q.noNote?'':`<button type="button" class="add-note" id="noteBtn" aria-expanded="${state.noteOpen[i]}">${state.noteOpen[i]?'− Ocultar comentario':'+ Añadir un comentario'}</button>
+    <textarea id="qnote" class="qtext" aria-label="Comentario adicional" placeholder="Si quieres, abunda un poco más sobre tu respuesta…" style="display:${state.noteOpen[i]?'block':'none'}">${esc(state.notes[i])}</textarea>`}
     <div class="row">
       <button class="btn btn-ghost" id="back">← Atrás</button>
       <button class="btn btn-primary" id="next" ${canNext(i)?'':'disabled'}>${i===n-1?'Ver mi recomendación':'Siguiente'}</button>
@@ -219,9 +236,33 @@ function renderQuestion(){
   const ta=document.getElementById("qtext");
   const refresh=()=>{document.getElementById("next").disabled=!canNext(i);};
   if(ta) ta.oninput=()=>{state.texts[i]=ta.value;refresh();};
+  const nb=document.getElementById("noteBtn"), nt=document.getElementById("qnote");
+  if(nb){
+    nb.onclick=()=>{
+      state.noteOpen[i]=!state.noteOpen[i];
+      nt.style.display=state.noteOpen[i]?'block':'none';
+      nb.textContent=state.noteOpen[i]?'− Ocultar comentario':'+ Añadir un comentario';
+      nb.setAttribute("aria-expanded",state.noteOpen[i]);
+      if(state.noteOpen[i]) nt.focus();
+    };
+    nt.oninput=()=>{state.notes[i]=nt.value;};
+  }
+  const paint=()=>{
+    const full=Q.multi && state.answers[i].length>=MAX_MULTI;
+    app.querySelectorAll(".opt").forEach(x=>{
+      const on=state.answers[i].includes(+x.dataset.k);
+      x.classList.toggle("sel",on); x.setAttribute("aria-pressed",on);
+      x.classList.toggle("dim", full && !on);
+    });
+  };
+  paint();
   app.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{
-    state.answers[i]=+b.dataset.k;
-    app.querySelectorAll(".opt").forEach(x=>x.classList.toggle("sel",x===b));
+    const k=+b.dataset.k, sel=state.answers[i];
+    if(!Q.multi) state.answers[i]=[k];
+    else if(sel.includes(k)) state.answers[i]=sel.filter(x=>x!==k);
+    else if(sel.length<MAX_MULTI) state.answers[i]=[...sel,k];
+    else return;
+    paint();
     if(ta){ ta.style.display=needsText(i)?'block':'none'; if(needsText(i)) ta.focus(); }
     refresh();
   });
@@ -287,7 +328,7 @@ function renderContact(){
     <details class="summary">
       <summary>Revisar mis respuestas</summary>
       <ol>
-        ${QUESTIONS.map((q,i)=>`<li><span>${q.q}</span><strong>${esc(answerText(i))}</strong></li>`).join("")}
+        ${QUESTIONS.map((q,i)=>`<li><span>${q.q}</span><strong>${esc(answerText(i))}</strong>${state.notes[i].trim()?`<em>Comentario: ${esc(state.notes[i].trim())}</em>`:''}</li>`).join("")}
       </ol>
     </details>
     <form id="f" novalidate>
@@ -325,7 +366,9 @@ async function submit(e){
     "Opción escogida":choiceLabel,
     "Puntuación (Opción 1 / Opción 2)":`${s.o1} / ${s.o2}`
   };
-  QUESTIONS.forEach((q,i)=>{payload[`P${String(i+1).padStart(2,"0")}. ${q.q}`]=answerText(i);});
+  QUESTIONS.forEach((q,i)=>{const key=`P${String(i+1).padStart(2,"0")}`;
+    payload[`${key}. ${q.q}`]=answerText(i);
+    if(state.notes[i].trim()) payload[`${key}. Comentario`]=state.notes[i].trim();});
   payload["Comentarios"]=v("comments")||"—";
 
   const btn=document.getElementById("send");
