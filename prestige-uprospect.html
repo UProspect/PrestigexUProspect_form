@@ -73,6 +73,7 @@
   .summary ol{padding-left:20px;margin-top:12px}
   .summary li{margin:10px 0;font-size:.92rem}
   .summary li span{display:block;color:var(--muted)}
+  .qtext{margin-top:14px}
   footer{text-align:center;font-size:.8rem;color:var(--muted);padding:0 16px 32px}
 </style>
 </head>
@@ -132,27 +133,40 @@ const QUESTIONS = [
     {t:"Experiencia organizando torneos y eventos", s:{o2:2}},
     {t:"Mi red de clubes, escuelas y universidades", s:{o2:1}},
     {t:"Conocimiento en desarrollo de plataformas", s:{o1:1}}]},
-  {q:"¿Dónde crees que tu aporte tendría más impacto?", opts:[
-    {t:"Desarrollo tecnológico, como la app móvil", s:{o1:2}},
-    {t:"Showcases y torneos UProspect", s:{o2:2}},
-    {t:"Relaciones con clubes, escuelas y universidades", s:{o2:1}}]},
+  {q:"¿Qué esperas recibir a cambio de integrar Prestige Recruit a UProspect?", opts:[
+    {t:"Nada inmediato; me interesa el proyecto a largo plazo", s:{}},
+    {t:"Una compensación económica por la plataforma", s:{}},
+    {t:"Ingresos por el trabajo que realice", s:{o2:1}},
+    {t:"Una participación en la empresa", s:{o1:1}}]},
   {q:"¿Cómo te gustaría manejar la transición de los atletas de Prestige Recruit?", opts:[
     {t:"Prefiero que UProspect se encargue de la comunicación", s:{o1:1}},
     {t:"Quiero comunicarme yo directamente con ellos", s:{o2:1}},
     {t:"Lo trabajamos juntos", s:{}}]},
-  {q:"Para ti, ¿qué haría que el piloto sea un éxito?", opts:[
-    {t:"Que los atletas y universidades migren sin problemas", s:{}},
-    {t:"Ver crecimiento en atletas y universidades activas", s:{o1:1}},
-    {t:"Lograr organizar nuestro primer evento juntos", s:{o2:1}},
-    {t:"Tener claridad sobre los próximos pasos del acuerdo", s:{}}]},
+  {q:"¿Qué planes tienes para Prestige Sports en los próximos años?", textOn:3, ph:"Cuéntanos tus planes…", opts:[
+    {t:"Seguir enfocado en la gestión de clubes y torneos", s:{}},
+    {t:"Desarrollar nuevas plataformas o productos tecnológicos", s:{}},
+    {t:"Reducir mi carga y enfocarme en menos proyectos", s:{}},
+    {t:"Otro (cuéntanos)", s:{}}]},
+  {q:"¿Planeas seguir desarrollando otras plataformas o proyectos de reclutamiento?", opts:[
+    {t:"No, quiero enfocar ese esfuerzo en UProspect", s:{}},
+    {t:"Sí, pero en áreas que no compiten con UProspect", s:{}},
+    {t:"Sí, tengo otros proyectos en desarrollo", s:{}},
+    {t:"Todavía no lo sé", s:{}}]},
   {q:"¿Cuándo te gustaría comenzar el piloto?", opts:[
     {t:"Este mismo mes", s:{}},
     {t:"En los próximos 2 a 3 meses", s:{}},
     {t:"Antes de la próxima temporada", s:{}},
-    {t:"Prefiero conversarlo primero", s:{}}]}
+    {t:"Prefiero conversarlo primero", s:{}}]},
+  {q:"¿Hay algo de esta integración que te preocupe o te genere dudas?", textOn:1, ph:"Escribe aquí lo que quieras comentar…", opts:[
+    {t:"No, por ahora no", s:{}},
+    {t:"Sí, quiero comentarlo", s:{}}]}
 ];
 
-const state = {step:-1, answers:Array(QUESTIONS.length).fill(null), view:null, choice:null};
+const state = {step:-1, answers:Array(QUESTIONS.length).fill(null), texts:Array(QUESTIONS.length).fill(""), view:null, choice:null};
+function esc(s){ return String(s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c])); }
+function needsText(i){ const Q=QUESTIONS[i]; return Q.textOn!==undefined && state.answers[i]===Q.textOn; }
+function canNext(i){ if(state.answers[i]===null) return false; return !needsText(i) || state.texts[i].trim().length>0; }
+function answerText(i){ const a=QUESTIONS[i].opts[state.answers[i]].t; return needsText(i) ? `${a}: ${state.texts[i].trim()}` : a; }
 const app = document.getElementById("app");
 
 function scores(){
@@ -179,7 +193,7 @@ function renderIntro(){
       </ul>
     </div>
     <div class="row">
-      <span class="note">${QUESTIONS.length} preguntas · unos 3 minutos</span>
+      <span class="note">${QUESTIONS.length} preguntas · unos 4 minutos</span>
       <button class="btn btn-primary" id="start">Comenzar</button>
     </div>
   </section>`;
@@ -196,15 +210,20 @@ function renderQuestion(){
     <div class="opts">
       ${Q.opts.map((o,k)=>`<button class="opt ${state.answers[i]===k?'sel':''}" data-k="${k}">${o.t}</button>`).join("")}
     </div>
+    ${Q.textOn!==undefined?`<textarea id="qtext" class="qtext" aria-label="Tu respuesta" placeholder="${Q.ph||'Escribe aquí…'}" style="display:${needsText(i)?'block':'none'}">${esc(state.texts[i])}</textarea>`:''}
     <div class="row">
       <button class="btn btn-ghost" id="back">← Atrás</button>
-      <button class="btn btn-primary" id="next" ${state.answers[i]===null?'disabled':''}>${i===n-1?'Ver mi recomendación':'Siguiente'}</button>
+      <button class="btn btn-primary" id="next" ${canNext(i)?'':'disabled'}>${i===n-1?'Ver mi recomendación':'Siguiente'}</button>
     </div>
   </section>`;
+  const ta=document.getElementById("qtext");
+  const refresh=()=>{document.getElementById("next").disabled=!canNext(i);};
+  if(ta) ta.oninput=()=>{state.texts[i]=ta.value;refresh();};
   app.querySelectorAll(".opt").forEach(b=>b.onclick=()=>{
     state.answers[i]=+b.dataset.k;
     app.querySelectorAll(".opt").forEach(x=>x.classList.toggle("sel",x===b));
-    document.getElementById("next").disabled=false;
+    if(ta){ ta.style.display=needsText(i)?'block':'none'; if(needsText(i)) ta.focus(); }
+    refresh();
   });
   document.getElementById("back").onclick=()=>{state.step--;render();};
   document.getElementById("next").onclick=()=>{
@@ -268,7 +287,7 @@ function renderContact(){
     <details class="summary">
       <summary>Revisar mis respuestas</summary>
       <ol>
-        ${QUESTIONS.map((q,i)=>`<li><span>${q.q}</span><strong>${q.opts[state.answers[i]].t}</strong></li>`).join("")}
+        ${QUESTIONS.map((q,i)=>`<li><span>${q.q}</span><strong>${esc(answerText(i))}</strong></li>`).join("")}
       </ol>
     </details>
     <form id="f" novalidate>
@@ -309,7 +328,7 @@ async function submit(e){
     "Opción escogida":choiceLabel,
     "Puntuación (Opción 1 / Opción 2)":`${s.o1} / ${s.o2}`
   };
-  QUESTIONS.forEach((q,i)=>{payload[`P${i+1}. ${q.q}`]=q.opts[state.answers[i]].t;});
+  QUESTIONS.forEach((q,i)=>{payload[`P${String(i+1).padStart(2,"0")}. ${q.q}`]=answerText(i);});
   payload["Comentarios"]=v("comments")||"—";
 
   const btn=document.getElementById("send");
