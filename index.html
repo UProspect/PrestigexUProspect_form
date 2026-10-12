@@ -295,8 +295,6 @@ function renderContact(){
       <input id="name" autocomplete="name" required>
       <label class="f" for="email">Correo electrónico</label>
       <input id="email" type="email" autocomplete="email" required>
-      <label class="f" for="phone">Teléfono (opcional)</label>
-      <input id="phone" type="tel" autocomplete="tel">
       <label class="f" for="comments">¿Algo que quieras añadir o ajustar? (opcional)</label>
       <textarea id="comments"></textarea>
       <div id="err" class="err" role="alert"></div>
@@ -323,7 +321,6 @@ async function submit(e){
     _captcha:"false",
     "Nombre":v("name"),
     email:v("email"),
-    "Teléfono":v("phone")||"—",
     "Opción recomendada":`${OPTIONS[rec].num}: ${OPTIONS[rec].name}`,
     "Opción escogida":choiceLabel,
     "Puntuación (Opción 1 / Opción 2)":`${s.o1} / ${s.o2}`
